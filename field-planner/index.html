@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Планировщик выездных работ</title>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("planner.theme.v1");
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        } else {
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+        }
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-main">
+        <h1>Планировщик выездных работ</h1>
+        <nav aria-label="Основная навигация">
+          <ul class="nav">
+            <li><a href="#planFormCard">План</a></li>
+            <li><a href="#checklistSection">Чек-лист</a></li>
+            <li><a href="#summarySection">Сводка</a></li>
+            <li><a href="#monitoringSection">Мониторинг</a></li>
+            <li><a href="#plansListSection">Мои планы</a></li>
+            <li><a href="#sourcesSection">Источники</a></li>
+          </ul>
+        </nav>
+      </div>
+      <button type="button" id="themeToggle" class="theme-toggle" aria-label="Переключить тему">
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <section class="card" id="planFormCard" aria-labelledby="formHeading">
+      <h2 id="formHeading">Параметры плана</h2>
+      <form id="planForm" novalidate>
+        <div class="field">
+          <label for="planTitle">Название плана <span aria-hidden="true">*</span></label>
+          <input type="text" id="planTitle" name="title" required autocomplete="off">
+        </div>
+
+        <div class="field">
+          <label for="planPlace">Место</label>
+          <select id="planPlace" name="place">
+            <option value="moscow">Зелёная зона (Москва)</option>
+            <option value="spb">Зелёная зона (Санкт-Петербург)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="planDate">Дата <span aria-hidden="true">*</span></label>
+          <input type="date" id="planDate" name="date" required>
+        </div>
+
+        <div class="field">
+          <label for="workType">Вид работ</label>
+          <select id="workType" name="workType">
+            <option value="green">Обследование зелёной зоны</option>
+            <option value="water">Наблюдение у водоёма</option>
+            <option value="ice">Исследование водоёма в зимний период</option>
+          </select>
+        </div>
+
+        <div class="field checkbox-field">
+          <input type="checkbox" id="nearWater" name="nearWater">
+          <label for="nearWater">Рядом есть водоём</label>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn-primary" id="savePlanBtn">Сохранить план</button>
+          <button type="button" class="btn-secondary" id="newPlanBtn">Новый план</button>
+          <button type="button" class="btn-secondary" id="printPlanBtn">Распечатать план</button>
+        </div>
+      </form>
+      <p id="formError" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card" id="checklistSection" aria-labelledby="checklistHeading">
+      <h2 id="checklistHeading">Чек-лист подготовки</h2>
+      <p class="hint">Отметьте выполненные пункты. Скрытые пункты не учитываются в сводке.</p>
+      <ul id="checklist" class="checklist"></ul>
+    </section>
+
+    <section class="card" id="summarySection" aria-labelledby="summaryHeading">
+      <h2 id="summaryHeading">Сводка</h2>
+      <div id="summaryContent" aria-live="polite"></div>
+    </section>
+
+    <section class="card" id="currentPlanCard" aria-labelledby="currentPlanHeading" hidden>
+      <h2 id="currentPlanHeading">Текущий план</h2>
+      <div id="currentPlanContent"></div>
+    </section>
+
+    <section class="card monitoring-card" id="monitoringSection" aria-labelledby="monitoringHeading">
+      <div class="monitoring-overlay">
+        <h2 id="monitoringHeading">Мониторинг погоды</h2>
+        <div class="monitoring-header">
+          <p class="hint monitoring-place">
+            Место: <span id="monitoringPlaceName">Москва</span>
+            (<span id="monitoringCoords">55.7558, 37.6173</span>).
+            Источник: MET Norway Locationforecast 2.0.
+          </p>
+          <button type="button" id="refreshWeatherBtn" class="btn-secondary on-dark">Обновить данные</button>
+        </div>
+
+        <div id="weatherStatus" class="weather-status" hidden></div>
+
+        <div id="weatherData" class="weather-data">
+          <div class="weather-metric">
+            <span class="weather-label">Температура</span>
+            <span class="weather-value" id="weatherTemp">—</span>
+          </div>
+          <div class="weather-metric">
+            <span class="weather-label">Ветер</span>
+            <span class="weather-value" id="weatherWind">—</span>
+          </div>
+          <div class="weather-metric">
+            <span class="weather-label">Влажность</span>
+            <span class="weather-value" id="weatherHumidity">—</span>
+          </div>
+        </div>
+
+        <div class="weather-meta">
+          <p>Время данных API: <span id="weatherDataTime">—</span></p>
+          <p>Время загрузки: <span id="weatherLoadTime">—</span></p>
+        </div>
+
+        <p class="hint weather-disclaimer" id="weatherDisclaimer">
+          Это текущие данные, а не прогноз на выбранную дату выезда. Для будущего плана ориентируйтесь на дату и проверяйте прогноз отдельно.
+        </p>
+      </div>
+    </section>
+
+    <section class="card" id="plansListSection" aria-labelledby="plansHeading">
+      <h2 id="plansHeading">
+        Мои планы <span id="plansCount" class="plans-count" hidden></span>
+      </h2>
+      <p class="hint">
+        Планы сохраняются только в этом браузере на этом компьютере. Очистка данных браузера удалит их.
+        Синхронизации с другими устройствами нет. Персональные данные не собираются.
+      </p>
+      <div id="plansListMessage"></div>
+      <ul id="plansList" class="plans-list"></ul>
+    </section>
+
+    <section class="card" id="sourcesSection" aria-labelledby="sourcesHeading">
+      <h2 id="sourcesHeading">Источники</h2>
+      <div id="sourcesList"></div>
+    </section>
+  </main>
+
+  <section id="printReport" class="print-report" aria-hidden="true"></section>
+
+  <script src="data.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
